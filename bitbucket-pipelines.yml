@@ -1,52 +1,70 @@
-image: docker:stable
+# REQUESTED ENVIRONMENT VARIABLES:
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_DEFAULT_REGION
+# - ECR_HOST
+# - ECR_REPO_NAME
+# - ECR_CLUSTER_NAME
 
+image: docker:stable
 options:
   docker: true
-
 pipelines:
-  custom: #branches: To auto run based on branch push
+  branches: #To auto run based on branch push
     develop:
       - step:
-          name: Test only
+          name: Build complete app, and run tests
           script:
-              # Install dependencies
-              - ./ci/dependencies.sh
-              # Build both Node.js and angular projects
-              - ./build.sh
-              # Check our build
-              - docker-compose up -d --build
-              - docker-compose logs
-              - docker-compose down
-              # Run redis server on local to run test
-              - redis-server --daemonize yes
-              # Run tests
-              - npm run test
+              # Build our application
+              - docker build --target builder -t devops-task:test .
+
+              # Run unit-tests
+              - docker run devops-task:test npm test
     master:
       - step:
-          name: Test and Deploy to S3
-          deployment: production
+          name: Build complete app, and run tests
+          script:
+              # Build our application
+              - docker build --target builder -t devops-task:test .
+              # Run unit-tests
+              - docker run devops-task:test npm test
+      - step:
+          name: Build and publish docker image to AWS ECR repository.
+          script:
+              # Install aws-cli
+              - apk update && apk upgrade
+              - apk -v --update add python2 py2-pip groff
+              - pip install --upgrade awscli==1.14.5
+              
+              # Build application for production
+              - docker build --target production -t devops-task .
+
+              # After the build completes, tag the image so we can push the image to our ECR repository
+              - docker tag devops-task:latest ${ECR_HOST}/${ECR_REPO_NAME}:${BITBUCKET_BUILD_NUMBER}
+              
+              
+              # Login to the ECR via the aws script
+              - $(aws ecr get-login --no-include-email --region eu-west-1)
+
+              # Push the docker image to ECR
+              - docker push "${ECR_HOST}/${ECR_REPO_NAME}:${BITBUCKET_BUILD_NUMBER}"
+      - step:
+          name: Deploy to ECS
           script:
               # Install dependencies
-              - ./ci/dependencies.sh
-              # Build both Node.js and angular projects
-              - ./build.sh
-              # Check our build
-              - docker-compose up -d --build
-              - docker-compose logs
-              - docker-compose down
-              # Run redis server on local to run test
-              - redis-server --daemonize yes
-              # Run tests
-              - npm run test
-              # Preparation of deployement based on the actual build
-              # [i choosed use zip to compress relevant files for deployement]
-              - ./ci/before_deploy.sh
-              # Deploy to AWS S3 
-              - pipe: atlassian/aws-s3-deploy:0.2.4
-                variables:
-                  AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
-                  AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
-                  AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
-                  S3_BUCKET: $PRODUCTION_BUCKET_NAME
-                  ACL: "public-read"
-                  LOCAL_PATH: "./deploy"
+              - apk update && apk upgrade
+              - apk -v --update add curl gettext
+
+              # Replace the docker image name in the docker-compose-aws.yml with the newly pushed image.
+              - envsubst < docker-compose-template.yml >  docker-compose-aws.yml
+
+              # Install AWS ECS-cli
+              - curl -o /usr/local/bin/ecs-cli https://amazon-ecs-cli.s3.amazonaws.com/ecs-cli-linux-amd64-latest
+              - curl -o ecs-cli.asc https://amazon-ecs-cli.s3.amazonaws.com/ecs-cli-linux-amd64-latest.asc
+              - chmod +x /usr/local/bin/ecs-cli
+              
+              # Check the ecs-cli version
+              - ecs-cli --version
+
+              # Deploy the updated docker compose to ECS using our docker-compose file
+              - ecs-cli compose --file "docker-compose-aws.yml" --cluster "${ECR_CLUSTER_NAME}" --ecs-params "ecs-params.yml" service up --deployment-min-healthy-percent 0 --deployment-max-percent 100

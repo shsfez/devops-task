@@ -1,3 +1,6 @@
+// set REDIS_MOCK to true
+process.env.REDIS_MOCK = "true";
+
 // import chai, chai-http
 const chai = require('chai');
 const chaiHttp = require('chai-http');
@@ -159,7 +162,7 @@ describe("Unitests - POST /api/update_redis", () => {
                 done();
             });
     });
-    it('Send post with both params key and value should return error 400', (done) => {
+    it('Send post with both params key and value should return ok 200', (done) => {
         chai.request(server)
             .post('/api/update_redis?key=hello&value=world')
             .end((err, res) => {

@@ -1,0 +1,14 @@
+version: 1
+task_definition:
+  ecs_network_mode: bridge
+  task_role_arn: arn:aws:iam::284347898783:role/ecsTaskExecutionRole
+  task_size:
+    cpu_limit: 1024
+    mem_limit: 983
+run_params:
+  network_configuration:
+    awsvpc_configuration:
+      subnets:
+        - subnet-0f385a253e869cf9a
+      security_groups:
+        - sg-0df39a2f84a0fd0c8

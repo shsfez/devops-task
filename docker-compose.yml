@@ -1,26 +1,24 @@
+# This docker-compose file can run on any computer with docker+docker-compose installed
+# Execution: docker-compose up
+
 version: '3'
 
 services:
     redis:
         image: sickp/alpine-redis:4.0.8
-        networks: 
-          - webnet
-
     node-angular:
         build: ./
-        image: node-angular:${BITBUCKET_COMMIT}
-        networks: 
-            - webnet
+        image: node-angular-redis
         ports:
             - "3000:3000"
         environment:
             PORT : 3000
             REDIS_STRING : redis://redis
             SERVER_TIMEOUT : 3000
+            NODE_ENV: production
         volumes:
-          - ./data:/data
+          - my-data:/data
         depends_on:
             - redis
-
-networks:
-    webnet:
+volumes:
+    my-data:

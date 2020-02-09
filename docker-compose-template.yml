@@ -1,0 +1,32 @@
+# This docker-compose file doesn't require any of the other files to run all the project
+# He get the already built image from the ECR repository and makes all runnign
+# In order to run this docker compose file locally, you need first to:
+# 1) install docker, docker-compose, aws-cli
+# 2) configure aws-cli with ECR access credentials
+# 3) Export ECR_HOST, ECR_REPO_NAME, BITBUCKET_BUILD_NUMBER
+# 4) Login to docker ECR registry using this command:
+#     $(aws ecr get-login --no-include-email --region eu-west-1)
+# 5) Run the file:
+#      docker-compose -f docker-compose-template.yml up -d
+
+version: '3'
+
+services:
+    redis:
+        image: sickp/alpine-redis:4.0.8
+        ports:
+            - "6379:6379"
+    node-angular:
+        image: ${ECR_HOST}/${ECR_REPO_NAME}:${BITBUCKET_BUILD_NUMBER}
+        ports:
+            - "3000:3000"
+        environment:
+            PORT : 3000
+            REDIS_STRING : redis://redis
+            SERVER_TIMEOUT : 3000
+        depends_on:
+            - redis
+        volumes:
+          - my-data:/data
+volumes:
+    my-data:

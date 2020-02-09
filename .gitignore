@@ -3,4 +3,4 @@ dist
 .env
 data
 angular-src/node_modules
-angular-src/dist
+#angular-src/dist
