@@ -1,7 +1,5 @@
 .env
 README.md
-src
 node_modules
 data
 assets
-angular-src
